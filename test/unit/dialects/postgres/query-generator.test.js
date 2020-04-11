@@ -44,49 +44,52 @@ if (dialect.startsWith('postgres')) {
           expectation: 'CREATE DATABASE "myDatabase" ENCODING = \'UTF8\' LC_COLLATE = \'en_US.UTF-8\' LC_CTYPE = \'zh_TW.UTF-8\' TEMPLATE = \'template0\';'
         }
       ],
+
       dropDatabaseQuery: [
         {
           arguments: ['myDatabase'],
           expectation: 'DROP DATABASE IF EXISTS "myDatabase";'
         }
       ],
+
       arithmeticQuery: [
         {
           title: 'Should use the plus operator',
-          arguments: ['+', 'myTable', { foo: 'bar' }, {}, {}],
-          expectation: 'UPDATE "myTable" SET "foo"="foo"+ \'bar\'  RETURNING *'
+          arguments: ['+', 'myTable', {}, { foo: 'bar' }, {}, {}],
+          expectation: 'UPDATE "myTable" SET "foo"="foo"+ \'bar\' RETURNING *'
         },
         {
           title: 'Should use the plus operator with where clause',
-          arguments: ['+', 'myTable', { foo: 'bar' }, { bar: 'biz' }, {}],
+          arguments: ['+', 'myTable', { bar: 'biz' }, { foo: 'bar' }, {}, {}],
           expectation: 'UPDATE "myTable" SET "foo"="foo"+ \'bar\' WHERE "bar" = \'biz\' RETURNING *'
         },
         {
           title: 'Should use the plus operator without returning clause',
-          arguments: ['+', 'myTable', { foo: 'bar' }, {}, { returning: false }],
+          arguments: ['+', 'myTable', {}, { foo: 'bar' }, {}, { returning: false }],
           expectation: 'UPDATE "myTable" SET "foo"="foo"+ \'bar\''
         },
         {
           title: 'Should use the minus operator',
-          arguments: ['-', 'myTable', { foo: 'bar' }, {}, {}],
-          expectation: 'UPDATE "myTable" SET "foo"="foo"- \'bar\'  RETURNING *'
+          arguments: ['-', 'myTable', {}, { foo: 'bar' }, {}, {}],
+          expectation: 'UPDATE "myTable" SET "foo"="foo"- \'bar\' RETURNING *'
         },
         {
           title: 'Should use the minus operator with negative value',
-          arguments: ['-', 'myTable', { foo: -1 }, {}, {}],
-          expectation: 'UPDATE "myTable" SET "foo"="foo"- -1  RETURNING *'
+          arguments: ['-', 'myTable', {}, { foo: -1 }, {}, {}],
+          expectation: 'UPDATE "myTable" SET "foo"="foo"- -1 RETURNING *'
         },
         {
           title: 'Should use the minus operator with where clause',
-          arguments: ['-', 'myTable', { foo: 'bar' }, { bar: 'biz' }, {}],
+          arguments: ['-', 'myTable', { bar: 'biz' }, { foo: 'bar' }, {}, {}],
           expectation: 'UPDATE "myTable" SET "foo"="foo"- \'bar\' WHERE "bar" = \'biz\' RETURNING *'
         },
         {
           title: 'Should use the minus operator without returning clause',
-          arguments: ['-', 'myTable', { foo: 'bar' }, {}, { returning: false }],
+          arguments: ['-', 'myTable', {}, { foo: 'bar' }, {}, { returning: false }],
           expectation: 'UPDATE "myTable" SET "foo"="foo"- \'bar\''
         }
       ],
+
       attributesToSQL: [
         {
           arguments: [{ id: 'INTEGER' }],
@@ -819,6 +822,9 @@ if (dialect.startsWith('postgres')) {
           arguments: ['myTable', [{ name: 'foo' }, { name: 'bar' }], { returning: true }],
           expectation: "INSERT INTO \"myTable\" (\"name\") VALUES ('foo'),('bar') RETURNING *;"
         }, {
+          arguments: ['myTable', [{ name: 'foo' }, { name: 'bar' }], { returning: ['id', 'sentToId'] }],
+          expectation: "INSERT INTO \"myTable\" (\"name\") VALUES ('foo'),('bar') RETURNING \"id\",\"sentToId\";"
+        }, {
           arguments: ['myTable', [{ name: 'foo' }, { name: 'bar' }], { ignoreDuplicates: true, returning: true }],
           expectation: "INSERT INTO \"myTable\" (\"name\") VALUES ('foo'),('bar') ON CONFLICT DO NOTHING RETURNING *;"
         }, {
@@ -1085,6 +1091,29 @@ if (dialect.startsWith('postgres')) {
             bind: ["foo';DROP TABLE mySchema.myTable;", 'foo']
           },
           context: { options: { quoteIdentifiers: false } }
+        }
+      ],
+
+      upsertQuery: [
+        {
+          arguments: [
+            'myTable',
+            { name: 'foo' },
+            { name: 'foo' },
+            { id: 2 },
+            { primaryKeyField: 'id' }
+          ],
+          expectation: 'CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text)  AS $func$ BEGIN INSERT INTO "myTable" ("name") VALUES (\'foo\') RETURNING "id" INTO primary_key; created := true; EXCEPTION WHEN unique_violation THEN UPDATE "myTable" SET "name"=\'foo\' WHERE "id" = 2 RETURNING "id" INTO primary_key; created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();'
+        },
+        {
+          arguments: [
+            'myTable',
+            { name: 'RETURNING *', json: '{"foo":"RETURNING *"}' },
+            { name: 'RETURNING *', json: '{"foo":"RETURNING *"}' },
+            { id: 2 },
+            { primaryKeyField: 'id' }
+          ],
+          expectation: 'CREATE OR REPLACE FUNCTION pg_temp.sequelize_upsert(OUT created boolean, OUT primary_key text)  AS $func$ BEGIN INSERT INTO "myTable" ("name","json") VALUES (\'RETURNING *\',\'{"foo":"RETURNING *"}\') RETURNING "id" INTO primary_key; created := true; EXCEPTION WHEN unique_violation THEN UPDATE "myTable" SET "name"=\'RETURNING *\',"json"=\'{"foo":"RETURNING *"}\' WHERE "id" = 2 RETURNING "id" INTO primary_key; created := false; END; $func$ LANGUAGE plpgsql; SELECT * FROM pg_temp.sequelize_upsert();'
         }
       ],
 
